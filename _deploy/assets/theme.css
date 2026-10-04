@@ -1,0 +1,298 @@
+/* ============================================================
+   M61 Restaurant — Dark theme + theme toggle
+   ------------------------------------------------------------
+   Manual toggle only (per product decision): the site defaults to
+   light and does NOT follow prefers-color-scheme. The chosen
+   theme is persisted to localStorage under "m61:theme" and
+   applied to <html data-theme="light|dark"> by main.js before
+   first paint to avoid a flash.
+
+   Loaded last, after style.css / menu.css / cart.css / ui.css.
+   ============================================================ */
+
+/* ============================================================
+   1. Theme toggle component
+   ============================================================ */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap); height: var(--tap);
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid rgba(232, 199, 122, .35);
+  border-radius: 50%;
+  color: var(--gold-soft);
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease),
+              border-color var(--dur) var(--ease),
+              transform var(--dur) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.theme-toggle:hover { background: rgba(232, 199, 122, .15); }
+.theme-toggle:active { transform: scale(.92); }
+.theme-toggle svg {
+  width: 18px; height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur-slow) var(--ease), opacity var(--dur) var(--ease);
+}
+/* Show the icon for the theme you would switch TO. */
+.theme-toggle .icon-moon { display: none; }
+[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+[data-theme="dark"] .theme-toggle .icon-moon { display: block; }
+.theme-toggle.is-spinning svg { transform: rotate(-70deg) scale(.6); }
+
+/* Drawer variant */
+.drawer__theme {
+  margin-top: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  min-height: var(--tap);
+  background: transparent;
+  border: 1px solid rgba(232, 199, 122, .35);
+  border-radius: 999px;
+  color: var(--gold-soft);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.drawer__theme:hover { background: rgba(232, 199, 122, .15); }
+.drawer__theme:active { transform: scale(.97); }
+.drawer__theme svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+
+/* ============================================================
+   2. Dark tokens
+   ============================================================ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --crimson: #E8756A;        /* was #7A0F1B — lifted for legibility on dark */
+  --crimson-deep: #1E0C0E;   /* section backgrounds (reviews, CTA bands) */
+  --crimson-soft: #8E322D;
+  --gold: #D9B268;
+  --gold-soft: #EFD49A;
+  --gold-deep: #DDB96F;      /* replaces the AA-darkened #8C6528 on dark */
+  /* --white stays true white on purpose: it is overwhelmingly a *text* token
+     (hero titles, reviews, footer, drawer, ghost buttons — 21 usages), and
+     remapping it to a dark surface made those render near-black on dark
+     backgrounds. Card surfaces use --surface instead, and every component
+     that used --white as a background is overridden explicitly in §4. */
+  --white: #FFFFFF;
+  --cream: #120F0E;          /* page background */
+  --ink: #F4EFE8;
+  --ink-soft: #BCB0A4;
+  --line: rgba(217, 178, 104, .26);
+
+  --surface: #1C1817;
+  --surface-alt: #120F0E;
+  --on-surface: #F4EFE8;
+  --on-surface-soft: #BCB0A4;
+  --accent-text: #E8756A;
+
+  --shadow-soft: 0 10px 30px -14px rgba(0, 0, 0, .75);
+  --shadow-lift: 0 22px 44px -22px rgba(0, 0, 0, .85);
+}
+
+[data-theme="dark"] body { background: var(--cream); color: var(--ink); }
+
+/* ============================================================
+   3. Decorative monogram
+   Multiply makes the monogram vanish on a dark page — switch to screen.
+   ============================================================ */
+[data-theme="dark"] .bg-monogram {
+  mix-blend-mode: screen;
+  opacity: .05;
+}
+
+/* ============================================================
+   4. Hardcoded backgrounds that escaped the token system
+   ============================================================ */
+[data-theme="dark"] .section--about,
+[data-theme="dark"] .section--menu,
+[data-theme="dark"] .section--menu--alt,
+[data-theme="dark"] .section--menu--popular,
+[data-theme="dark"] .signature-strip,
+[data-theme="dark"] .deals-band,
+[data-theme="dark"] .section--cuisine {
+  background: linear-gradient(180deg, #1C1817 0%, #120F0E 100%);
+}
+[data-theme="dark"] .section--cuisine,
+[data-theme="dark"] .deals-band { background: #1C1817; }
+
+[data-theme="dark"] .section--visit,
+[data-theme="dark"] .section--values,
+[data-theme="dark"] .section--gallery,
+[data-theme="dark"] .section--contact,
+[data-theme="dark"] .section--confirmed { background: var(--cream); }
+
+[data-theme="dark"] .menu__card,
+[data-theme="dark"] .about__signature,
+[data-theme="dark"] .deal-card,
+[data-theme="dark"] .value,
+[data-theme="dark"] .cuisine-card,
+[data-theme="dark"] .contact-card,
+[data-theme="dark"] .cart-item,
+[data-theme="dark"] .cart-empty,
+[data-theme="dark"] .cart-summary,
+[data-theme="dark"] .checkout-card,
+[data-theme="dark"] .checkout-section,
+[data-theme="dark"] .confirmed-card {
+  background: var(--surface);
+}
+[data-theme="dark"] .menu__card { background: #1C1817; }
+[data-theme="dark"] .cuisine-card { background: #151211; }
+
+[data-theme="dark"] .footer { background: #0C0908; }
+[data-theme="dark"] .menu-scan img { background: #1C1817; }
+
+/* ============================================================
+   5. Text colour fixes for the lifted crimson
+   ============================================================ */
+/* Gold on the now-light crimson needs dark text to stay readable. */
+[data-theme="dark"] .btn--crimson { color: #2A0508; }
+[data-theme="dark"] .btn--crimson:hover { color: #2A0508; }
+[data-theme="dark"] .btn--crimson:active { color: #2A0508; }
+[data-theme="dark"] .topbar__cart-count { color: #2A0508; }
+[data-theme="dark"] .topbar__cta:hover,
+[data-theme="dark"] .drawer__theme:hover { color: #2A0508; }
+
+[data-theme="dark"] .section--reviews,
+[data-theme="dark"] .section--cta {
+  background: var(--crimson-deep);
+  border-top: 1px solid var(--line);
+}
+[data-theme="dark"] .review { background: rgba(255, 255, 255, .04); }
+[data-theme="dark"] .review:hover { background: rgba(255, 255, 255, .07); }
+[data-theme="dark"] .review::before { color: var(--gold); opacity: .35; }
+
+[data-theme="dark"] .hours li,
+[data-theme="dark"] .menu__name,
+[data-theme="dark"] .value__name,
+[data-theme="dark"] .cuisine-card h3,
+[data-theme="dark"] .contact-card__big,
+[data-theme="dark"] .cart-item__name,
+[data-theme="dark"] .cart-item__qty span,
+[data-theme="dark"] .cart-summary__row strong,
+[data-theme="dark"] .deal-card__name,
+[data-theme="dark"] .address strong,
+[data-theme="dark"] .section__title { color: var(--ink); }
+
+/* Crimson used as text on dark surfaces */
+[data-theme="dark"] .cart-item__price,
+[data-theme="dark"] .cart-item__qty button,
+[data-theme="dark"] .cart-summary__total strong,
+[data-theme="dark"] .cart-summary h3,
+[data-theme="dark"] .menu__note,
+[data-theme="dark"] .deal-card__price,
+[data-theme="dark"] .contact-card__big a,
+[data-theme="dark"] .cuisine-card__icon,
+[data-theme="dark"] .cart-empty__icon,
+[data-theme="dark"] .confirmed__number { color: var(--accent-text); }
+[data-theme="dark"] .contact-card__big a:hover { color: var(--gold-soft); }
+
+[data-theme="dark"] .cart-empty__icon { background: rgba(232, 199, 122, .16); color: var(--gold-soft); }
+[data-theme="dark"] .confirmed__check { background: var(--gold); color: #2A0508; }
+[data-theme="dark"] .confirmed-icon { background: linear-gradient(135deg, #8E322D 0%, #5C1A17 100%); }
+
+/* ============================================================
+   6. Forms & interactive surfaces
+   ============================================================ */
+[data-theme="dark"] .field input,
+[data-theme="dark"] .field textarea {
+  background: #161312;
+  border-color: rgba(217, 178, 104, .28);
+  color: var(--ink);
+}
+[data-theme="dark"] .field input:hover,
+[data-theme="dark"] .field textarea:hover { border-color: rgba(217, 178, 104, .5); }
+[data-theme="dark"] .field input:focus-visible,
+[data-theme="dark"] .field textarea:focus-visible {
+  background: #1C1817;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(217, 178, 104, .22);
+}
+[data-theme="dark"] .field.is-invalid input,
+[data-theme="dark"] .field.is-invalid textarea {
+  border-color: #E8756A;
+  background: rgba(232, 117, 106, .1);
+}
+[data-theme="dark"] .field__error { color: #F09A8F; }
+[data-theme="dark"] .field--required label::after { color: #F09A8F; }
+
+[data-theme="dark"] .payment-option { background: #161312; }
+[data-theme="dark"] .payment-option:has(input:checked) {
+  border-color: var(--crimson);
+  background: rgba(232, 117, 106, .1);
+}
+[data-theme="dark"] .payment-option__radio { border-color: var(--ink-soft); }
+[data-theme="dark"] .payment-option__radio::after { background: var(--crimson); }
+[data-theme="dark"] .payment-option__name { color: var(--ink); }
+[data-theme="dark"] .payment-option__hint { color: var(--ink-soft); }
+
+[data-theme="dark"] .payment-notice {
+  background: rgba(217, 178, 104, .1);
+  border-color: rgba(217, 178, 104, .35);
+  color: var(--ink-soft);
+}
+[data-theme="dark"] .payment-notice strong { color: var(--ink); }
+[data-theme="dark"] .payment-notice a { color: var(--crimson); }
+
+[data-theme="dark"] .cart-summary__delivery-hint {
+  background: rgba(217, 178, 104, .1);
+  border-color: rgba(217, 178, 104, .4);
+  color: var(--ink-soft);
+}
+[data-theme="dark"] .cart-summary__delivery-hint strong { color: var(--gold-soft); }
+[data-theme="dark"] .cart-summary__delivery-hint.is-free {
+  background: rgba(232, 117, 106, .1);
+  border-color: rgba(232, 117, 106, .35);
+}
+[data-theme="dark"] .cart-summary__delivery-hint.is-free strong { color: var(--crimson); }
+
+[data-theme="dark"] .cart-item__media { background-color: #161312; }
+[data-theme="dark"] .cart-item__media::before { background-color: #161312; }
+
+/* Add-to-cart pill */
+[data-theme="dark"] .btn-add { background: var(--crimson); color: #2A0508; border-color: var(--crimson); }
+[data-theme="dark"] .btn-add:hover { background: #F08D82; color: #2A0508; }
+[data-theme="dark"] .btn-add--ghost { background: transparent; color: var(--crimson); border-color: var(--crimson); }
+[data-theme="dark"] .btn-add--ghost:hover { background: var(--crimson); color: #2A0508; }
+[data-theme="dark"] .menu-card__add.is-added { background: var(--surface); color: var(--crimson); }
+
+/* Toast */
+[data-theme="dark"] .toast { background: #2A1F1D; border: 1px solid var(--line); }
+[data-theme="dark"] .toast__icon { background: var(--gold); color: #2A0508; }
+
+/* Menu page internals */
+[data-theme="dark"] .menu-card { background: #1C1817; }
+[data-theme="dark"] .menu-card__desc,
+[data-theme="dark"] .menu-card__note { color: var(--ink-soft); }
+[data-theme="dark"] .menu-nav,
+[data-theme="dark"] .menu-tabs { background: var(--surface); border-color: var(--line); }
+[data-theme="dark"] .menu-nav__search { background: #161312; border-color: rgba(217, 178, 104, .28); }
+[data-theme="dark"] .menu-search,
+[data-theme="dark"] .menu-nav__search input {
+  background: #161312;
+  color: var(--ink);
+  border-color: rgba(217, 178, 104, .28);
+}
+[data-theme="dark"] .menu-scan { background: #1C1817; }
+
+/* ============================================================
+   7. Reduced motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle svg { transition: none; }
+  .theme-toggle.is-spinning svg { transform: none; }
+  .btn.is-loading::after { animation-duration: 1.4s; }
+}

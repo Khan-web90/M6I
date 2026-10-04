@@ -1,0 +1,583 @@
+/* ============================================================
+   M61 Restaurant — Motion system
+   ------------------------------------------------------------
+   Purely additive. Adds entrance choreography, scroll reveals,
+   micro-interactions and depth to the existing design without
+   changing any content, layout, palette or business data.
+
+   Rules this file obeys:
+   - transform / opacity / clip-path only (GPU friendly, no layout)
+   - every hidden state is gated behind html.motion, which only JS adds,
+     so if JS fails the page is fully visible
+   - nothing is hidden on first paint without an observer watching it
+   - reduced motion and coarse pointers disable the heavy layers
+
+   Loaded last, after style.css / menu.css / cart.css / ui.css / theme.css.
+   ============================================================ */
+
+:root {
+  --m-ease: cubic-bezier(.22, 1, .36, 1);
+  --m-ease-soft: cubic-bezier(.4, 0, .2, 1);
+  --m-dur-1: 180ms;   /* micro            */
+  --m-dur-2: 260ms;   /* button hover     */
+  --m-dur-3: 520ms;   /* image hover      */
+  --m-dur-4: 720ms;   /* scroll reveal    */
+  --m-dur-5: 960ms;   /* major transition */
+  --m-rise: 26px;
+}
+
+/* ============================================================
+   1. Scroll progress rail
+   ============================================================ */
+.m-scroll-rail {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 2px;
+  z-index: 60;
+  pointer-events: none;
+  background: transparent;
+  opacity: 0;
+  transition: opacity var(--m-dur-2) var(--m-ease-soft);
+}
+html.motion .m-scroll-rail { opacity: 1; }
+.m-scroll-rail__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, var(--gold-soft), var(--gold) 55%, var(--crimson));
+  transform: scaleY(0);
+  transform-origin: top center;
+  will-change: transform;
+}
+
+/* ============================================================
+   2. Page entrance choreography
+   Retimes the existing hero sequence to land inside ~1.2s.
+   ============================================================ */
+html.motion .hero__eyebrow   { animation-delay: 60ms;  animation-duration: 700ms; }
+html.motion .hero__title-line:nth-child(1) { animation-delay: 140ms; }
+html.motion .hero__title-line:nth-child(2) { animation-delay: 210ms; }
+html.motion .hero__title-line:nth-child(3) { animation-delay: 280ms; }
+html.motion .hero__title-line { animation-duration: 800ms; }
+html.motion .hero__sub     { animation-delay: 400ms; animation-duration: 700ms; }
+html.motion .hero__tag     { animation-delay: 480ms; animation-duration: 700ms; }
+html.motion .hero__actions { animation-delay: 580ms; animation-duration: 700ms; }
+html.motion .hero__scroll  { animation-delay: 720ms; animation-duration: 700ms; }
+
+/* Hero media settles from a slight zoom — cinematic, not flashy */
+html.motion .hero__media {
+  animation: mHeroSettle 1500ms var(--m-ease) both;
+  will-change: transform, opacity;
+}
+@keyframes mHeroSettle {
+  from { transform: scale(1.07); opacity: .35; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+html.motion .hero__video { transition: opacity 900ms var(--m-ease), filter 900ms var(--m-ease); }
+html.motion .hero__video:not(.is-ready) { filter: saturate(1.05) contrast(1.04) blur(6px); }
+html.motion .hero__video.is-ready { filter: saturate(1.05) contrast(1.04) blur(0); }
+
+/* Nav slides down and settles */
+html.motion .topbar {
+  animation: mNavIn 760ms var(--m-ease) both;
+}
+@keyframes mNavIn {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+/* Parallax owns the transform, so the entrance animates a wrapper-free
+   property and hands off cleanly. */
+html.motion .topbar.is-scrolled {
+  animation: none;
+}
+
+/* Compact nav once scrolling begins */
+.topbar {
+  transition:
+    background-color var(--m-dur-2) var(--m-ease),
+    backdrop-filter var(--m-dur-2) var(--m-ease),
+    border-color var(--m-dur-2) var(--m-ease),
+    padding var(--m-dur-2) var(--m-ease);
+}
+.topbar.is-scrolled { padding-top: 10px; padding-bottom: 10px; }
+.topbar.is-scrolled .topbar__name { font-size: 19px; }
+.topbar.is-scrolled .topbar__mark { width: 24px; height: 24px; }
+
+/* ============================================================
+   3. Scroll reveal system
+   Hidden only when html.motion is present AND the observer owns it.
+   ============================================================ */
+html.motion [data-reveal] {
+  opacity: 0;
+  /* No will-change here on purpose: the menu page tags 169 elements, and
+     promoting all of them to their own compositor layer up front is a real
+     memory/perf cost. The revealed state promotes only while it animates. */
+}
+html.motion [data-reveal="up"] {
+  transform: translate3d(0, var(--m-rise), 0);
+}
+html.motion [data-reveal="scale"] {
+  transform: scale(.965);
+}
+html.motion [data-reveal="left"] {
+  transform: translate3d(-30px, 0, 0);
+}
+html.motion [data-reveal="right"] {
+  transform: translate3d(30px, 0, 0);
+}
+html.motion [data-reveal="mask"] {
+  clip-path: inset(0 0 100% 0);
+  transform: translate3d(0, 14px, 0);
+}
+html.motion [data-reveal="mask-x"] {
+  clip-path: inset(0 100% 0 0);
+  transform: translate3d(0, 10px, 0);
+}
+
+html.motion [data-reveal].is-revealed {
+  opacity: 1;
+  transform: none;
+  clip-path: inset(0 0 0 0);
+  transition:
+    opacity var(--m-dur-4) var(--m-ease),
+    transform var(--m-dur-4) var(--m-ease),
+    clip-path var(--m-dur-5) var(--m-ease);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+/* Set by the engine when a transition has had its full time and still has
+   not landed. Guarantees the final state regardless of why it stalled. */
+html.motion [data-reveal].is-settled {
+  opacity: 1 !important;
+  transform: none !important;
+  clip-path: inset(0 0 0 0) !important;
+  transition: none !important;
+  will-change: auto;
+}
+
+/* Numbers and labels get a smaller, quieter entrance */
+html.motion [data-reveal="num"] {
+  transform: scale(.92);
+}
+html.motion [data-reveal="num"].is-revealed {
+  transform: none;
+}
+
+/* Underline that draws itself under section eyebrows */
+.eyebrow-rule {
+  position: relative;
+  display: inline-block;
+}
+html.motion .eyebrow-rule::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -6px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 820ms var(--m-ease) 160ms;
+}
+html.motion .eyebrow-rule.is-revealed::after { transform: scaleX(1); }
+
+/* ============================================================
+   4. Custom cursor — desktop, fine pointer, no reduced motion
+   ============================================================ */
+.m-cursor,
+.m-cursor-ring {
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 9999;
+  pointer-events: none;
+  border-radius: 50%;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.m-cursor {
+  width: 7px; height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  background: var(--gold-soft);
+  transition: opacity var(--m-dur-2) var(--m-ease), width var(--m-dur-2) var(--m-ease), height var(--m-dur-2) var(--m-ease), margin var(--m-dur-2) var(--m-ease);
+}
+.m-cursor-ring {
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  margin: -17px 0 0 -17px;
+  border: 1px solid rgba(232, 199, 122, .7);
+  transition: opacity var(--m-dur-2) var(--m-ease), width var(--m-dur-3) var(--m-ease), height var(--m-dur-3) var(--m-ease), margin var(--m-dur-3) var(--m-ease), background-color var(--m-dur-3) var(--m-ease), border-color var(--m-dur-3) var(--m-ease);
+}
+.m-cursor-label {
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #2A0508;
+  opacity: 0;
+  transform: scale(.7);
+  transition: opacity var(--m-dur-2) var(--m-ease), transform var(--m-dur-2) var(--m-ease);
+  white-space: nowrap;
+}
+
+/* Live states */
+html.m-cursor-on .m-cursor,
+html.m-cursor-on .m-cursor-ring { opacity: 1; }
+html.m-cursor-on .m-cursor-ring.is-active {
+  width: 78px; height: 78px;
+  margin: -39px 0 0 -39px;
+  background: var(--gold);
+  border-color: var(--gold);
+}
+html.m-cursor-on .m-cursor-ring.is-active .m-cursor-label { opacity: 1; transform: scale(1); }
+html.m-cursor-on .m-cursor.is-hidden { opacity: 0; }
+
+/* Pill shape for text links */
+html.m-cursor-on .m-cursor-ring.is-link {
+  width: 62px; height: 34px;
+  margin: -17px 0 0 -31px;
+  border-radius: 999px;
+  background: rgba(232, 199, 122, .14);
+  border-color: rgba(232, 199, 122, .55);
+}
+/* Small target on dense controls */
+html.m-cursor-on .m-cursor-ring.is-tight {
+  width: 26px; height: 26px;
+  margin: -13px 0 0 -13px;
+}
+/* Hide the native cursor only when ours is actually running */
+html.m-cursor-on,
+html.m-cursor-on a,
+html.m-cursor-on button,
+html.m-cursor-on [data-cursor-target] { cursor: none; }
+html.m-cursor-on input,
+html.m-cursor-on textarea { cursor: auto; }
+
+/* ============================================================
+   5. Button micro-interactions
+   ============================================================ */
+.btn,
+.btn-add,
+.topbar__cta,
+.cart-item__remove {
+  position: relative;
+  overflow: hidden;
+  transition:
+    background-color var(--m-dur-2) var(--m-ease),
+    color var(--m-dur-2) var(--m-ease),
+    border-color var(--m-dur-2) var(--m-ease),
+    transform var(--m-dur-2) var(--m-ease),
+    box-shadow var(--m-dur-2) var(--m-ease);
+}
+.btn > *,
+.btn-add > * { position: relative; z-index: 1; }
+
+/* Light sweep — a single restrained pass, not a shimmer loop */
+.btn::before,
+.btn-add::before,
+.topbar__cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.34) 50%, transparent 62%);
+  transform: translateX(-120%);
+  transition: transform 720ms var(--m-ease);
+  pointer-events: none;
+}
+.btn:hover::before,
+.btn-add:hover::before,
+.topbar__cta:hover::before { transform: translateX(120%); }
+
+/* Lift + shadow on the primary actions */
+.btn--primary:hover,
+.topbar__cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px -14px rgba(201, 163, 90, .75);
+}
+.btn--crimson:hover { box-shadow: 0 12px 26px -14px rgba(122, 15, 27, .7); }
+.btn--ghost:hover { background: rgba(255,255,255,.08); }
+
+/* Magnetic wrapper is a transform-only layer, so it composites cleanly */
+.m-magnetic { will-change: transform; }
+
+/* ============================================================
+   6. Cards & media depth
+   ============================================================ */
+.gallery-item,
+.deal-card,
+.menu__card,
+.value,
+.cuisine-card,
+.review,
+.contact-card,
+.menu-card {
+  transition:
+    transform var(--m-dur-3) var(--m-ease),
+    border-color var(--m-dur-3) var(--m-ease),
+    box-shadow var(--m-dur-3) var(--m-ease),
+    background-color var(--m-dur-3) var(--m-ease);
+  will-change: transform;
+}
+
+/* Reflected highlight that tracks the pointer — soft, photographic */
+.m-sheen { position: relative; overflow: hidden; }
+.m-sheen::after {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(closest-side circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.28), rgba(255,255,255,.06) 45%, transparent 72%);
+  opacity: 0;
+  transition: opacity var(--m-dur-3) var(--m-ease);
+}
+.m-sheen:hover::after { opacity: 1; }
+
+/* Gallery: title shifts, caption line draws */
+.gallery-item__name { transition: transform var(--m-dur-3) var(--m-ease); }
+.gallery-item:hover .gallery-item__name { transform: translateY(-3px); }
+.gallery-item__cat { transition: letter-spacing var(--m-dur-3) var(--m-ease), color var(--m-dur-3) var(--m-ease); }
+.gallery-item:hover .gallery-item__cat { letter-spacing: .26em; }
+.gallery-item__overlay { transition: background var(--m-dur-3) var(--m-ease); }
+.gallery-item:hover .gallery-item__overlay {
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.82));
+}
+
+/* "View" affordance inside gallery tiles */
+.gallery-item__view {
+  position: absolute;
+  z-index: 3;
+  right: 16px; top: 16px;
+  padding: 6px 12px;
+  border: 1px solid rgba(232,199,122,.6);
+  border-radius: 999px;
+  background: rgba(22,5,8,.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: var(--gold-soft);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity var(--m-dur-2) var(--m-ease), transform var(--m-dur-2) var(--m-ease);
+}
+.gallery-item:hover .gallery-item__view,
+.gallery-item:focus-within .gallery-item__view { opacity: 1; transform: translateY(0); }
+
+/* Card accent line (services / menu) */
+.menu__card::before,
+.value::before,
+.cuisine-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 2px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 620ms var(--m-ease);
+}
+.menu__card:hover::before,
+.value:hover::before,
+.cuisine-card:hover::before { transform: scaleX(1); }
+.menu__card, .value, .cuisine-card { position: relative; overflow: hidden; }
+
+/* ============================================================
+   7. Lightbox
+   ============================================================ */
+.m-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: grid;
+  place-items: center;
+  padding: clamp(16px, 4vw, 48px);
+  background: rgba(10, 3, 5, .93);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--m-dur-3) var(--m-ease), visibility var(--m-dur-3);
+}
+.m-lightbox.is-open { opacity: 1; visibility: visible; }
+
+.m-lightbox__figure {
+  position: relative;
+  margin: 0;
+  max-width: min(1100px, 92vw);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  opacity: 0;
+  transform: scale(.94) translateY(14px);
+  transition: opacity var(--m-dur-3) var(--m-ease), transform var(--m-dur-4) var(--m-ease);
+}
+.m-lightbox.is-open .m-lightbox__figure { opacity: 1; transform: none; }
+.m-lightbox__img {
+  max-width: 100%;
+  max-height: 74vh;
+  object-fit: contain;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 40px 90px -30px rgba(0,0,0,.9);
+  background: #1A0307;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.m-lightbox__cap {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--white);
+  text-align: center;
+}
+.m-lightbox__cap-name { font-family: var(--serif); font-size: 22px; font-weight: 500; }
+.m-lightbox__cap-cat { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--gold-soft); }
+.m-lightbox__count { font-size: 12px; color: rgba(255,255,255,.5); font-variant-numeric: tabular-nums; }
+
+.m-lightbox__btn {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(232,199,122,.4);
+  background: rgba(22,5,8,.6);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--gold-soft);
+  cursor: pointer;
+  transition: background-color var(--m-dur-2) var(--m-ease), transform var(--m-dur-2) var(--m-ease), border-color var(--m-dur-2) var(--m-ease);
+}
+.m-lightbox__btn:hover { background: var(--gold); color: #2A0508; border-color: var(--gold); }
+.m-lightbox__btn:active { transform: scale(.92); }
+.m-lightbox__btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.m-lightbox__prev { left: 0; top: 50%; margin-top: -23px; }
+.m-lightbox__next { right: 0; top: 50%; margin-top: -23px; }
+.m-lightbox__close {
+  position: fixed;
+  top: 18px; right: 18px;
+  width: 46px; height: 46px;
+}
+.m-lightbox__hint {
+  position: fixed;
+  bottom: 18px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 10.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.45);
+  pointer-events: none;
+}
+
+/* ============================================================
+   8. Form focus choreography
+   ============================================================ */
+.field label,
+.checkout-card > h3 {
+  transition: transform var(--m-dur-2) var(--m-ease), color var(--m-dur-2) var(--m-ease);
+}
+.field:focus-within label {
+  transform: translateY(-1px);
+  color: var(--gold-deep);
+}
+.field input,
+.field textarea {
+  transition:
+    border-color var(--m-dur-2) var(--m-ease),
+    background-color var(--m-dur-2) var(--m-ease),
+    box-shadow var(--m-dur-2) var(--m-ease);
+}
+.field.is-invalid input,
+.field.is-invalid textarea {
+  animation: mShake 340ms var(--m-ease-soft);
+}
+@keyframes mShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  60% { transform: translateX(3px); }
+}
+.field__error { transition: opacity var(--m-dur-2) var(--m-ease); }
+
+/* Payment options lift very slightly when chosen */
+.payment-option { transition: transform var(--m-dur-2) var(--m-ease), border-color var(--m-dur-2) var(--m-ease), background-color var(--m-dur-2) var(--m-ease); }
+.payment-option:has(input:checked) { transform: translateX(2px); }
+
+/* ============================================================
+   9. Menu page niceties
+   ============================================================ */
+.menu-tabs a,
+.topbar__nav a {
+  transition: opacity var(--m-dur-1) var(--m-ease), transform var(--m-dur-1) var(--m-ease);
+}
+.menu-card__add {
+  transition: transform var(--m-dur-1) var(--m-ease), background-color var(--m-dur-1) var(--m-ease), color var(--m-dur-1) var(--m-ease);
+}
+.menu-card__add:hover { transform: scale(1.1); }
+.menu-card__add:active { transform: scale(.94); }
+
+/* ============================================================
+   10. Responsive + capability gating
+   ============================================================ */
+
+/* Coarse pointers: no custom cursor, no magnetic, no sheen. */
+@media (hover: none), (pointer: coarse) {
+  .m-cursor, .m-cursor-ring { display: none; }
+  html.m-cursor-on, html.m-cursor-on a, html.m-cursor-on button, html.m-cursor-on [data-cursor-target] { cursor: auto; }
+  .m-sheen::after { display: none; }
+  .m-magnetic { transform: none !important; }
+  .gallery-item__view { opacity: 1; transform: none; }
+  .btn::before, .btn-add::before, .topbar__cta::before { display: none; }
+}
+
+/* Tablet and below: keep it fast and compact. */
+@media (max-width: 900px) {
+  .m-scroll-rail { display: none; }
+  :root { --m-rise: 18px; }
+  html.motion [data-reveal] { transition-duration: 520ms; }
+  html.motion [data-reveal].is-revealed { transition-duration: 520ms; }
+  .topbar.is-scrolled .topbar__name { font-size: 22px; }
+  .topbar.is-scrolled .topbar__mark { width: 28px; height: 28px; }
+  .m-lightbox__prev { left: 0; }
+  .m-lightbox__next { right: 0; }
+}
+
+@media (max-width: 560px) {
+  .m-lightbox__hint { display: none; }
+  .m-lightbox__cap-name { font-size: 18px; }
+}
+
+/* Reduced motion: strip the whole layer back to simple opacity. */
+@media (prefers-reduced-motion: reduce) {
+  html.motion [data-reveal],
+  html.motion [data-reveal="up"],
+  html.motion [data-reveal="scale"],
+  html.motion [data-reveal="left"],
+  html.motion [data-reveal="right"],
+  html.motion [data-reveal="mask"],
+  html.motion [data-reveal="mask-x"] {
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+  }
+  html.motion .hero__media { animation: none !important; }
+  html.motion .topbar { animation: none !important; }
+  .m-cursor, .m-cursor-ring { display: none; }
+  .m-scroll-rail { display: none; }
+  .m-sheen::after, .btn::before, .btn-add::before, .topbar__cta::before { display: none; }
+  .m-magnetic { transform: none !important; }
+  .eyebrow-rule::after { transform: none !important; }
+  .field.is-invalid input, .field.is-invalid textarea { animation: none !important; }
+}
+
+/* Short viewports (landscape phones) — trim entrance height */
+@media (max-height: 560px) and (orientation: landscape) {
+  html.motion .hero__scroll { display: none; }
+}
